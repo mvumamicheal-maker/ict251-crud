@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio CRUD Dashboard</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 2rem; max-width: 900px; margin: 0 auto; }
+        h1, h2 { color: #38bdf8; }
+        .card { background: #1e293b; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid #334155; }
+        form { display: grid; gap: 1rem; }
+        input, textarea { padding: 0.75rem; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; width: 100%; box-sizing: border-box; }
+        button { background: #2563eb; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #1d4ed8; }
+        button.cancel { background: #64748b; margin-left: 0.5rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: #0f172a; border-radius: 6px; overflow: hidden; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+        th { background: #1e293b; color: #38bdf8; }
+        .actions button { padding: 0.4rem 0.8rem; margin-right: 0.25rem; font-size: 0.8rem; }
+        .actions button.edit { background: #0284c7; }
+        .actions button.delete { background: #dc2626; }
+    </style>
+</head>
+<body>
+
+    <h1>Portfolio CRUD Dashboard</h1>
+    <p>ICT251 Activity 4 - Single-Table CRUD App</p>
+
+    <!-- Form Card -->
+    <div class="card">
+        <h2 id="form-title">Add New Portfolio Project</h2>
+        <form id="portfolio-form">
+            <input type="hidden" id="record-id">
+            <div>
+                <label>Owner Name *</label>
+                <input type="text" id="owner_name" required placeholder="e.g. Micheal Mvuma">
+            </div>
+            <div>
+                <label>Project Title *</label>
+                <input type="text" id="project_title" required placeholder="e.g. Student Web App">
+            </div>
+            <div>
+                <label>Description</label>
+                <textarea id="description" placeholder="Short description..."></textarea>
+            </div>
+            <div>
+                <label>Tech Stack</label>
+                <input type="text" id="tech_stack" placeholder="e.g. Node.js, Express">
+            </div>
+            <div>
+                <label>Live URL</label>
+                <input type="text" id="live_url" placeholder="https://...">
+            </div>
+            <div>
+                <label>Year</label>
+                <input type="number" id="year" placeholder="2026">
+            </div>
+            <div>
+                <button type="submit" id="submit-btn">Create Record</button>
+                <button type="button" id="cancel-btn" class="cancel" style="display:none;">Cancel Edit</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Table Card -->
+    <div class="card">
+        <h2>Existing Records</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Owner</th>
+                    <th>Project</th>
+                    <th>Tech Stack</th>
+                    <th>Year</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Dynamic rows inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Smart URL: uses localhost when opened locally via file://, and relative path when hosted on Render
+        const API_URL = window.location.protocol === 'file:' 
+            ? 'http://localhost:3000/api/portfolio' 
+            : '/api/portfolio';
+
+        const form = document.getElementById('portfolio-form');
+        const formTitle = document.getElementById('form-title');
+        const submitBtn = document.getElementById('submit-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const tableBody = document.getElementById('table-body');
+
+        const recordIdInput = document.getElementById('record-id');
+        const ownerNameInput = document.getElementById('owner_name');
+        const projectTitleInput = document.getElementById('project_title');
+        const descriptionInput = document.getElementById('description');
+        const techStackInput = document.getElementById('tech_stack');
+        const liveUrlInput = document.getElementById('live_url');
+        const yearInput = document.getElementById('year');
+
+        async function fetchRecords() {
+            try {
+                const res = await fetch(API_URL);
+                const result = await res.json();
+                if (result.success) renderTable(result.data);
+            } catch (err) { console.error('Error fetching records:', err); }
+        }
+
+        function renderTable(records) {
+            tableBody.innerHTML = '';
+            if (records.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No records found</td></tr>`;
+                return;
+            }
+            records.forEach(rec => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${rec.id}</td>
+                    <td>${rec.owner_name}</td>
+                    <td>${rec.project_title}</td>
+                    <td>${rec.tech_stack || ''}</td>
+                    <td>${rec.year || ''}</td>
+                    <td class="actions">
+                        <button class="edit" onclick="editRecord(${rec.id}, '${escapeHtml(rec.owner_name)}', '${escapeHtml(rec.project_title)}', '${escapeHtml(rec.description || '')}', '${escapeHtml(rec.tech_stack || '')}', '${escapeHtml(rec.live_url || '')}', ${rec.year || 2026})">Edit</button>
+                        <button class="delete" onclick="deleteRecord(${rec.id})">Delete</button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = recordIdInput.value;
+            const payload = {
+                owner_name: ownerNameInput.value,
+                project_title: projectTitleInput.value,
+                description: descriptionInput.value,
+                tech_stack: techStackInput.value,
+                live_url: liveUrlInput.value,
+                year: yearInput.value ? parseInt(yearInput.value) : null
+            };
+
+            const url = id ? `${API_URL}/${id}` : API_URL;
+            const method = id ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            if (result.success) {
+                resetForm();
+                fetchRecords();
+            } else {
+                alert('Error: ' + result.error);
+            }
+        });
+
+        window.editRecord = function(id, owner, title, desc, tech, url, yr) {
+            recordIdInput.value = id;
+            ownerNameInput.value = owner;
+            projectTitleInput.value = title;
+            descriptionInput.value = desc;
+            techStackInput.value = tech;
+            liveUrlInput.value = url;
+            yearInput.value = yr;
+            formTitle.textContent = `Edit Record (ID: ${id})`;
+            submitBtn.textContent = 'Update Record';
+            cancelBtn.style.display = 'inline-block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        window.deleteRecord = async function(id) {
+            if (!confirm('Are you sure you want to delete this record?')) return;
+            const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.success) fetchRecords();
+        }
+
+        cancelBtn.addEventListener('click', resetForm);
+        function resetForm() {
+            form.reset();
+            recordIdInput.value = '';
+            formTitle.textContent = 'Add New Portfolio Project';
+            submitBtn.textContent = 'Create Record';
+            cancelBtn.style.display = 'none';
+        }
+
+        fetchRecords();
+    </script>
+</body>
+</html>
